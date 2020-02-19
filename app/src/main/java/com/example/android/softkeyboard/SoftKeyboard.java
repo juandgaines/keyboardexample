@@ -19,6 +19,7 @@ package com.example.android.softkeyboard;
 import android.app.Dialog;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.inputmethodservice.InputMethodService;
 import android.inputmethodservice.Keyboard;
@@ -39,8 +40,18 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
+import android.widget.Toast;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ServiceLifecycleDispatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,9 +64,12 @@ import java.util.List;
  * be fleshed out as appropriate.
  */
 public class SoftKeyboard extends InputMethodService
-        implements KeyboardView.OnKeyboardActionListener {
+        implements KeyboardView.OnKeyboardActionListener, LifecycleOwner{
     static final boolean DEBUG = false;
-    
+
+    private final ServiceLifecycleDispatcher mDispatcher = new ServiceLifecycleDispatcher(this);
+
+    private MutableLiveData<String> x= new MutableLiveData();
     /**
      * This boolean indicates the optional example code for performing
      * processing of hard keys in addition to regular text generation
@@ -93,10 +107,47 @@ public class SoftKeyboard extends InputMethodService
      * to super class.
      */
     @Override public void onCreate() {
+        mDispatcher.onServicePreSuperOnCreate();
         super.onCreate();
         mInputMethodManager = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
         mWordSeparators = getResources().getString(R.string.word_separators);
+
+        x.observe(this, new Observer<String>() {
+            @Override
+            public void onChanged(String s) {
+                Toast.makeText(SoftKeyboard.this,s,Toast.LENGTH_SHORT).show();
+            }
+        });
+        x.setValue("");
     }
+
+    @CallSuper
+    @Nullable
+    @Override
+    public void onBindInput() {
+        mDispatcher.onServicePreSuperOnBind();
+        super.onBindInput();
+    }
+    @SuppressWarnings("deprecation")
+    @CallSuper
+    @Override
+    public void onStart(Intent intent, int startId) {
+        mDispatcher.onServicePreSuperOnStart();
+        super.onStart(intent, startId);
+    }
+
+    @CallSuper
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    @Override
+    public void onDestroy() {
+        mDispatcher.onServicePreSuperOnDestroy();
+        super.onDestroy();
+    }
+
 
     /**
      * Create new context object whose resources are adjusted to match the metrics of the display
@@ -530,6 +581,7 @@ public class SoftKeyboard extends InputMethodService
                 if (keyCode >= '0' && keyCode <= '9') {
                     keyDownUp(keyCode - '0' + KeyEvent.KEYCODE_0);
                 } else {
+                    x.setValue(String.valueOf((char) keyCode));
                     getCurrentInputConnection().commitText(String.valueOf((char) keyCode), 1);
                 }
                 break;
@@ -660,6 +712,7 @@ public class SoftKeyboard extends InputMethodService
         if (isAlphabet(primaryCode) && mPredictionOn) {
             mComposing.append((char) primaryCode);
             getCurrentInputConnection().setComposingText(mComposing, 1);
+            x.setValue(mComposing.toString());
             updateShiftKeyState(getCurrentInputEditorInfo());
             updateCandidates();
         } else {
@@ -751,5 +804,11 @@ public class SoftKeyboard extends InputMethodService
     }
     
     public void onRelease(int primaryCode) {
+    }
+
+    @NonNull
+    @Override
+    public Lifecycle getLifecycle() {
+        return mDispatcher.getLifecycle();
     }
 }
